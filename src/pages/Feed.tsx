@@ -112,7 +112,7 @@ const Feed = () => {
             </motion.div>
           ))}
         </div>
-      </motion.auto>
+      </motion.div>
     </DashboardLayout>
   );
 };
