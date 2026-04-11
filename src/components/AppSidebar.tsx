@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Map, Users, Gift, Package, BarChart3, Zap,
@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import HeartLogo from "./HeartLogo";
 import ThemeToggle from "./ThemeToggle";
-
+import { useAuth } from "@/contexts/AuthContext";
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Map, label: "NGO Map", path: "/map" },
@@ -29,6 +29,8 @@ const bottomItems = [
 const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -126,7 +128,7 @@ const AppSidebar = () => {
       <div className="p-3 border-t border-border">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
-            A
+            {user?.avatarInitial ?? "?"}
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -136,13 +138,22 @@ const AppSidebar = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <p className="text-sm font-medium text-foreground truncate">Alex Chen</p>
-                <p className="text-[11px] text-muted-foreground">Volunteer</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.name ?? "Guest"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">{user?.role ?? ""}</p>
               </motion.div>
             )}
           </AnimatePresence>
           {!collapsed && (
-            <button className="p-1.5 rounded-lg hover:bg-secondary" data-cursor-hover>
+            <button
+              className="p-1.5 rounded-lg hover:bg-secondary"
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+              data-cursor-hover
+            >
               <LogOut size={14} strokeWidth={1.5} className="text-muted-foreground" />
             </button>
           )}
