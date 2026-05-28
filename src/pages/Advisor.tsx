@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Rocket, User } from "lucide-react";
+import { Bot, Rocket, User, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const prompts = [
   "How can I improve my sleep quality?",
@@ -12,39 +15,98 @@ const prompts = [
   "How to build a morning routine?",
 ];
 
-const aiResponses: Record<string, string> = {
-  "How can I improve my sleep quality?": "Great question! Here are evidence-based tips:\n\n1. **Consistent schedule** — Sleep and wake at the same time daily\n2. **Blue light filter** — Avoid screens 1hr before bed\n3. **Cool room** — Keep your bedroom at 65-68°F (18-20°C)\n4. **No caffeine after 2pm** — It has a 6-hour half-life\n5. **Relaxation routine** — Try 4-7-8 breathing technique\n\nWant me to create a personalized sleep plan for you?",
-  default: "That's a great health question! Based on current medical guidelines, I'd recommend consulting with your local healthcare provider for personalized advice. In the meantime, I can share some general wellness tips:\n\n1. Stay hydrated (8 glasses/day)\n2. Get 30 min of daily exercise\n3. Eat a balanced diet rich in fruits & vegetables\n4. Prioritize 7-9 hours of sleep\n\nWould you like me to go deeper on any of these topics?",
-};
-
 interface Message {
   role: "user" | "ai";
   content: string;
+  id?: string;
+  pending?: boolean;
 }
 
 const Advisor = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [typing, setTyping] = useState(false);
   const [showPrompts, setShowPrompts] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
+  const pendingMessageId = useRef<string | null>(null);
+  const { toast } = useToast();
+
+  const askMutation = useMutation({
+    mutationFn: (message: string) => api.advisor.ask(message).then(res => res.data.reply),
+    onError: (error) => {
+      toast({
+        title: "Advisor error",
+        description: error instanceof Error ? error.message : "Unable to reach the advisor service.",
+        variant: "destructive",
+      });
+      setMessages(prev => prev.filter(message => !message.pending));
+      pendingMessageId.current = null;
+    },
+  });
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typing]);
+  }, [messages, askMutation.isPending]);
+
+  const quickReplies: Record<string, string> = {
+    "how can i improve my sleep quality?": "Good sleep starts with a simple routine. Try a consistent bedtime, a screen-free wind-down period, and keep your room cool and dark. If your energy still feels low, focus on small changes you can keep doing every day.",
+    "what are the best foods for immunity?": "Focus on whole foods: colorful fruits and vegetables, lean protein, healthy fats, and fermented foods. A balanced plate and consistent hydration are more important than any single superfood.",
+    "how to manage stress during exams?": "Break the day into short work blocks, add breathing breaks, and make time for sleep. Small wins matter; focus on one task at a time and reward yourself after progress.",
+    "tips for staying hydrated?": "Carry water, drink at regular intervals, and include water-rich foods like fruit and soups. Pay attention to your body's cues and avoid sugary drinks if you want sustained hydration.",
+    "best exercises for desk workers?": "Use short stretch breaks, gentle mobility moves, and quick walks to reset posture. Focus on the neck, shoulders, hips, and lower back to reduce tension from sitting.",
+    "how to build a morning routine?": "Start with one consistent action like a short walk, stretch session, or a glass of water. Keep it simple, then add new healthy steps once the first habit is established.",
+  };
 
   const sendMessage = (text: string) => {
-    if (!text.trim()) return;
-    setShowPrompts(false);
-    setMessages(prev => [...prev, { role: "user", content: text }]);
+    if (!text.trim() || askMutation.isPending) return;
+    
+    // Clear input immediately to prevent double-sends
     setInput("");
-    setTyping(true);
+    setShowPrompts(false);
+    
+    const placeholderId = `pending-${Date.now()}`;
+    pendingMessageId.current = placeholderId;
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text, id: `user-${Date.now()}` },
+      { role: "ai", content: "Thinking...", id: placeholderId, pending: true },
+    ]);
 
-    setTimeout(() => {
-      setTyping(false);
-      const response = aiResponses[text] || aiResponses.default;
-      setMessages(prev => [...prev, { role: "ai", content: response }]);
-    }, 1500);
+    const normalized = text.trim().toLowerCase();
+    const quickReply = quickReplies[normalized];
+    if (quickReply) {
+      setMessages((prev) => prev.map((message) =>
+        message.id === placeholderId
+          ? { ...message, content: quickReply, pending: false }
+          : message
+      ));
+      pendingMessageId.current = null;
+      return;
+    }
+
+    askMutation.mutate(text, {
+      onSuccess: (reply) => {
+        if (pendingMessageId.current) {
+          setMessages((prev) => prev.map((message) =>
+            message.id === pendingMessageId.current
+              ? { ...message, content: reply, pending: false }
+              : message
+          ));
+          pendingMessageId.current = null;
+        } else {
+          setMessages((prev) => [...prev, { role: "ai", content: reply }]);
+        }
+      },
+      onError: () => {
+        if (pendingMessageId.current) {
+          setMessages((prev) => prev.map((message) =>
+            message.id === pendingMessageId.current
+              ? { ...message, content: "Sorry, I couldn't get the answer quickly. Try again in a moment or use one of the suggested prompts.", pending: false }
+              : message
+          ));
+          pendingMessageId.current = null;
+        }
+      },
+    });
   };
 
   return (
@@ -86,13 +148,14 @@ const Advisor = () => {
                 {prompts.map((p, i) => (
                   <motion.button
                     key={p}
-                    className="text-left p-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                    className="text-left p-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                     onClick={() => sendMessage(p)}
-                    whileHover={{ scale: 1.01 }}
+                    whileHover={{ scale: askMutation.isPending ? 1 : 1.01 }}
                     data-cursor-hover
+                    disabled={askMutation.isPending}
                   >
                     {p}
                   </motion.button>
@@ -132,7 +195,7 @@ const Advisor = () => {
 
           {/* Typing indicator */}
           <AnimatePresence>
-            {typing && (
+            {askMutation.isPending && (
               <motion.div
                 className="flex items-center gap-3"
                 initial={{ opacity: 0 }}
@@ -162,7 +225,7 @@ const Advisor = () => {
         <div className="border-t border-border pt-4">
           <div className="flex items-end gap-3">
             <textarea
-              className="flex-1 bg-input border border-border rounded-2xl px-4 py-3 text-sm text-foreground resize-none focus:border-primary focus:outline-none transition-colors"
+              className="flex-1 bg-input border border-border rounded-2xl px-4 py-3 text-sm text-foreground resize-none focus:border-primary focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder="Ask me anything about health..."
               rows={1}
               value={input}
@@ -173,15 +236,21 @@ const Advisor = () => {
                   sendMessage(input);
                 }
               }}
+              disabled={askMutation.isPending}
             />
             <motion.button
-              className="p-3 rounded-2xl bg-primary text-primary-foreground"
-              whileHover={{ scale: 1.05 }}
+              className="p-3 rounded-2xl bg-primary text-primary-foreground disabled:opacity-50"
+              whileHover={{ scale: askMutation.isPending ? 1 : 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => sendMessage(input)}
               data-cursor-hover
+              disabled={askMutation.isPending || !input.trim()}
             >
-              <Rocket size={18} strokeWidth={1.5} />
+              {askMutation.isPending ? (
+                <Loader2 size={18} strokeWidth={1.5} className="animate-spin" />
+              ) : (
+                <Rocket size={18} strokeWidth={1.5} />
+              )}
             </motion.button>
           </div>
           <p className="text-[10px] text-muted-foreground text-center mt-2">Running locally • Private</p>

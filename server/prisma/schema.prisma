@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  password         String
+  name             String
+  role             String            @default("user")
+  location         String?
+  country          String?
+  bio              String?
+  avatarUrl        String?
+  interests        String            @default("[]")
+  xpPoints         Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  posts            Post[]
+  likes            Like[]
+  donations        Donation[]
+  volunteerHours   VolunteerHour[]
+  notifications    Notification[]
+  ngoApplications  NgoApplication[]
+}
+
+model Ngo {
+  id               String            @id @default(cuid())
+  name             String
+  location         String
+  country          String
+  description      String
+  score            Int               @default(0)
+  tags             String            @default("[]")
+  latitude         Float
+  longitude        Float
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  donations        Donation[]
+  volunteerHours   VolunteerHour[]
+  applications     NgoApplication[]
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  content     String
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes       Like[]
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  userId    String
+  postId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+model Donation {
+  id          String   @id @default(cuid())
+  amount      Float
+  currency    String   @default("USD")
+  message     String?
+  createdAt   DateTime @default(now())
+  userId      String
+  ngoId       String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ngo         Ngo      @relation(fields: [ngoId], references: [id], onDelete: Cascade)
+}
+
+model VolunteerHour {
+  id          String   @id @default(cuid())
+  hours       Float
+  description String
+  date        DateTime
+  createdAt   DateTime @default(now())
+  userId      String
+  ngoId       String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ngo         Ngo      @relation(fields: [ngoId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  type        String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NgoApplication {
+  id          String   @id @default(cuid())
+  role        String   @default("volunteer")
+  status      String   @default("pending")
+  message     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  ngoId       String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ngo         Ngo      @relation(fields: [ngoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ngoId])
+}

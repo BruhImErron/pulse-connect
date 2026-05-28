@@ -42,14 +42,25 @@ const HeartLogo = ({ size = 32, showText = true, collapsed = false }: HeartLogoP
         />
       </motion.div>
       {showText && !collapsed && (
-        <motion.span
-          className="font-heading text-lg font-bold text-foreground"
+        <motion.div
+          className="relative overflow-hidden"
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
         >
-          PulsePoint
-        </motion.span>
+          <span className="font-heading text-lg font-bold text-foreground">
+            Pulse
+          </span>
+          <span className="font-heading text-lg font-bold text-primary ml-1">
+            Point
+          </span>
+          <motion.div
+            className="absolute left-0 bottom-0 h-[2px] bg-red-500"
+            initial={{ width: 0 }}
+            animate={{ width: ["0%", "100%", "0%"] }}
+            transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </motion.div>
       )}
     </div>
   );

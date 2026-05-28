@@ -1,25 +1,66 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Link as LinkIcon, Megaphone } from "lucide-react";
+import { Heart, MessageCircle, Link as LinkIcon, Megaphone, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
-
-const initialPosts = [
-  { id: 1, author: "Priya Sharma", role: "Volunteer", initial: "P", color: "bg-primary", content: "Just finished an incredible health camp in rural Maharashtra! 200+ patients treated today. The gratitude in their eyes makes every hour worth it. 🏥❤️", likes: 42, comments: 8, time: "2h ago", liked: false },
-  { id: 2, author: "David Chen", role: "Donor", initial: "D", color: "bg-info", content: "Shipped 100 medical kits to MedAid International today! Tracking shows they'll arrive in Nairobi by Friday. Every kit counts! 📦", likes: 31, comments: 5, time: "4h ago", liked: false },
-  { id: 3, author: "Amara Obi", role: "NGO Lead", initial: "A", color: "bg-success", content: "Our clean water initiative reached 5,000 families this month! Thank you PulsePoint volunteers for making this possible. 🌊", likes: 89, comments: 15, time: "6h ago", liked: false },
-  { id: 4, author: "Maria Rodriguez", role: "Volunteer", initial: "M", color: "bg-warning", content: "Earned my 100 Hours badge today! Started as a weekend volunteer, now it's become my calling. Who else is on their way? 🏆", likes: 56, comments: 12, time: "8h ago", liked: false },
-];
+import { api, type Post } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Feed = () => {
-  const [posts, setPosts] = useState(initialPosts);
+  const { user } = useAuth();
   const [newPost, setNewPost] = useState("");
   const [composerFocused, setComposerFocused] = useState(false);
+  const queryClient = useQueryClient();
 
-  const toggleLike = (id: number) => {
-    setPosts(p => p.map(post =>
-      post.id === id ? { ...post, liked: !post.liked, likes: post.liked ? post.likes - 1 : post.likes + 1 } : post
-    ));
+  const { data: postsData, isLoading } = useQuery({
+    queryKey: ["posts"],
+    queryFn: () => api.posts.list().then(res => res.data.posts),
+  });
+
+  const createPostMutation = useMutation({
+    mutationFn: (content: string) => api.posts.create(content).then(res => res.data.post),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      setNewPost("");
+      setComposerFocused(false);
+    },
+  });
+
+  const likeMutation = useMutation({
+    mutationFn: (postId: string) => api.posts.like(postId).then(res => ({ postId, liked: res.data.liked })),
+    onSuccess: ({ postId, liked }) => {
+      queryClient.setQueryData(["posts"], (oldData: Post[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(post =>
+          post.id === postId
+            ? { ...post, _count: { likes: post._count.likes + (liked ? 1 : -1) } }
+            : post
+        );
+      });
+    },
+  });
+
+  const handleCreatePost = () => {
+    if (newPost.trim()) {
+      createPostMutation.mutate(newPost.trim());
+    }
   };
+
+  const handleLike = (postId: string) => {
+    likeMutation.mutate(postId);
+  };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const posts = postsData || [];
 
   return (
     <DashboardLayout>
@@ -32,7 +73,9 @@ const Feed = () => {
         {/* Composer */}
         <motion.div className="glass-card p-5 mb-8" layout>
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold shrink-0">A</div>
+            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold shrink-0">
+              {user?.avatarInitial ?? "A"}
+            </div>
             <div className="flex-1">
               <motion.textarea
                 className="w-full bg-transparent text-foreground text-sm resize-none focus:outline-none placeholder:text-muted-foreground"
@@ -43,6 +86,7 @@ const Feed = () => {
                 onBlur={() => !newPost && setComposerFocused(false)}
                 animate={{ height: composerFocused ? 80 : 40 }}
                 transition={{ duration: 0.2 }}
+                onKeyDown={(e) => e.key === "Enter" && e.ctrlKey && handleCreatePost()}
               />
               <AnimatePresence>
                 {composerFocused && (
@@ -54,10 +98,18 @@ const Feed = () => {
                   >
                     <span className="text-xs text-muted-foreground">{newPost.length}/500</span>
                     <motion.button
-                      className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium"
-                      whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} data-cursor-hover
+                      className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      data-cursor-hover
+                      onClick={handleCreatePost}
+                      disabled={createPostMutation.isPending || !newPost.trim()}
                     >
-                      Share Story 🚀
+                      {createPostMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        "Share Story 🚀"
+                      )}
                     </motion.button>
                   </motion.div>
                 )}
@@ -78,32 +130,33 @@ const Feed = () => {
               whileHover={{ borderColor: "hsla(357,100%,44.5%,0.15)" }}
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className={`w-9 h-9 rounded-full ${post.color} flex items-center justify-center text-primary-foreground text-sm font-bold`}>
-                  {post.initial}
+                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
+                  {post.author.avatarInitial}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">{post.author}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-lg bg-accent text-accent-foreground">{post.role}</span>
+                    <span className="text-sm font-semibold text-foreground">{post.author.name}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-lg bg-accent text-accent-foreground">{post.author.role}</span>
                   </div>
-                  <span className="text-[11px] font-mono text-muted-foreground">{post.time}</span>
+                  <span className="text-[11px] font-mono text-muted-foreground">
+                    {new Date(post.createdAt).toLocaleString()}
+                  </span>
                 </div>
               </div>
               <p className="text-sm text-foreground leading-relaxed mb-4">{post.content}</p>
               <div className="flex items-center gap-6">
                 <motion.button
-                  className={`flex items-center gap-1.5 text-sm ${post.liked ? "text-primary" : "text-muted-foreground"} hover:text-primary transition-colors`}
-                  onClick={() => toggleLike(post.id)}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+                  onClick={() => handleLike(post.id)}
                   whileTap={{ scale: 0.9 }}
                   data-cursor-hover
+                  disabled={likeMutation.isPending}
                 >
-                  <Heart size={16} strokeWidth={1.5} fill={post.liked ? "currentColor" : "none"} />
-                  <motion.span key={post.likes} initial={{ y: -5, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-                    {post.likes}
-                  </motion.span>
+                  <Heart size={16} strokeWidth={1.5} />
+                  <span>{post._count.likes}</span>
                 </motion.button>
                 <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-cursor-hover>
-                  <MessageCircle size={16} strokeWidth={1.5} /> {post.comments}
+                  <MessageCircle size={16} strokeWidth={1.5} /> 0
                 </button>
                 <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-cursor-hover>
                   <LinkIcon size={16} strokeWidth={1.5} /> Share

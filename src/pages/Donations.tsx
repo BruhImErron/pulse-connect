@@ -10,12 +10,18 @@ const categories = [
 ];
 
 const requests = [
-  { title: "Winter Clothing Drive", ngo: "HealthFirst NGO", location: "Mumbai", urgency: "critical", desc: "Urgent need for warm clothes for 200+ families in rural areas.", progress: 35, category: "Clothes", qty: "500 items" },
-  { title: "Medical Supply Kit", ngo: "MedAid International", location: "Nairobi", urgency: "critical", desc: "Essential medical supplies for community health centers.", progress: 62, category: "Medical", qty: "100 kits" },
-  { title: "Children's Books", ngo: "WellBeing Foundation", location: "São Paulo", urgency: "regular", desc: "Educational books for after-school programs.", progress: 78, category: "Books", qty: "300 books" },
-  { title: "Hygiene Packs", ngo: "CleanWater Corps", location: "Dhaka", urgency: "regular", desc: "Soap, toothbrush, and sanitizer packs for flood victims.", progress: 45, category: "Hygiene", qty: "250 packs" },
-  { title: "Laptop Donations", ngo: "TechHealth Initiative", location: "Lagos", urgency: "regular", desc: "Refurbished laptops for telemedicine training.", progress: 20, category: "Electronics", qty: "50 units" },
-  { title: "Emergency Food Supplies", ngo: "FoodForAll", location: "Manila", urgency: "critical", desc: "Non-perishable food items for disaster relief.", progress: 55, category: "Food", qty: "1000 meals" },
+  { title: "Winter Clothing Drive", ngo: "HealthFirst NGO", location: "Mumbai", urgency: "critical", desc: "Urgent need for warm clothes for 200+ families in rural areas.", progress: 35, category: "Clothes", qty: "500 items", donationUrl: "https://www.redcross.org/donate" },
+  { title: "Medical Supply Kit", ngo: "MedAid International", location: "Nairobi", urgency: "critical", desc: "Essential medical supplies for community health centers.", progress: 62, category: "Medical", qty: "100 kits", donationUrl: "https://www.doctorswithoutborders.org/donate" },
+  { title: "Children's Books", ngo: "WellBeing Foundation", location: "São Paulo", urgency: "regular", desc: "Educational books for after-school programs.", progress: 78, category: "Books", qty: "300 books", donationUrl: "https://www.savethechildren.org/us/donate" },
+  { title: "Hygiene Packs", ngo: "CleanWater Corps", location: "Dhaka", urgency: "regular", desc: "Soap, toothbrush, and sanitizer packs for flood victims.", progress: 45, category: "Hygiene", qty: "250 packs", donationUrl: "https://www.unicef.org/donate" },
+  { title: "Mobile Clinic Support", ngo: "Rural Health Access", location: "Cape Town", urgency: "critical", desc: "Funds needed for mobile clinics serving remote villages.", progress: 48, category: "Medical", qty: "10 clinics", donationUrl: "https://www.oxfam.org/en/donate" },
+  { title: "Vaccine Outreach", ngo: "Community Health Network", location: "Lagos", urgency: "critical", desc: "Support vaccination drives and health education campaigns.", progress: 60, category: "Medical", qty: "4 outreach teams", donationUrl: "https://www.gavi.org/donate" },
+  { title: "Maternal Health Kits", ngo: "Maternal Care Initiative", location: "Manila", urgency: "regular", desc: "Safe birth kits and prenatal supplies for pregnant families.", progress: 52, category: "Medical", qty: "200 kits", donationUrl: "https://www.unfpa.org/donate" },
+  { title: "Mental Health Support", ngo: "WellBeing Foundation", location: "São Paulo", urgency: "regular", desc: "Counseling and support resources for youth mental health.", progress: 70, category: "Mental Health", qty: "120 sessions", donationUrl: "https://www.nami.org/Get-Involved" },
+  { title: "Nutrition Care Packs", ngo: "HealthFirst NGO", location: "Mumbai", urgency: "critical", desc: "Healthy meal packs for families in food-insecure communities.", progress: 40, category: "Food", qty: "800 meals", donationUrl: "https://www.actionagainsthunger.org/donate" },
+  { title: "Health Education Campaign", ngo: "CleanWater Corps", location: "Dhaka", urgency: "regular", desc: "Community workshops on hygiene, sanitation, and disease prevention.", progress: 82, category: "Hygiene", qty: "15 programs", donationUrl: "https://www.wateraid.org/en/donate" },
+  { title: "Telehealth Access Fund", ngo: "TechHealth Initiative", location: "Lagos", urgency: "regular", desc: "Support remote health consultations with low-income patients.", progress: 30, category: "Electronics", qty: "60 devices", donationUrl: "https://www.msf.org/donate" },
+  { title: "Emergency Medical Response", ngo: "Philippine Red Cross", location: "Philippines", urgency: "critical", desc: "Rapid emergency response funding for disaster-affected communities.", progress: 58, category: "Medical", qty: "5 emergency teams", donationUrl: "https://redcross.org.ph/donate/" },
 ];
 
 const urgencyColors: Record<string, string> = {
@@ -107,13 +113,17 @@ const Donations = () => {
             </div>
             <div className="flex items-center justify-between mt-4">
               <span className="text-[11px] px-2 py-0.5 rounded-lg bg-accent text-accent-foreground">{r.category}</span>
-              <motion.button
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium"
+              <motion.a
+                href={r.donationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium inline-block"
                 whileHover={{ scale: 1.03, boxShadow: "0 0 20px hsla(357,100%,44.5%,0.3)" }}
-                whileTap={{ scale: 0.97 }} data-cursor-hover
+                whileTap={{ scale: 0.97 }}
+                data-cursor-hover
               >
                 Donate Now →
-              </motion.button>
+              </motion.a>
             </div>
           </motion.div>
         ))}

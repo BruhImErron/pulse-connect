@@ -1,19 +1,20 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Map, Users, Gift, Package, BarChart3, Zap,
-  BookOpen, Megaphone, Bot, Bell, Settings, ChevronLeft, LogOut,
+  BookOpen, Megaphone, Bot, Bell, Settings, ChevronLeft, LogOut, Camera,
 } from "lucide-react";
 import HeartLogo from "./HeartLogo";
 import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Map, label: "NGO Map", path: "/map" },
   { icon: Users, label: "NGO Matches", path: "/ngos" },
   { icon: Gift, label: "Donate", path: "/donations" },
-  { icon: Package, label: "Tracking", path: "/tracking" },
   { icon: BarChart3, label: "My Impact", path: "/impact" },
   { icon: Zap, label: "Activity", path: "/activity" },
   { icon: BookOpen, label: "Library", path: "/library" },
@@ -28,20 +29,57 @@ const bottomItems = [
 
 const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleProfileImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB");
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const imageData = e.target?.result as string;
+          await api.auth.updateProfile({ avatarUrl: imageData });
+          await refreshUser();
+          toast.success("Profile picture updated!");
+        } catch (error) {
+          toast.error("Failed to upload profile picture");
+        } finally {
+          setIsUploadingImage(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error("Failed to process image");
+      setIsUploadingImage(false);
+    }
+  };
 
   const NavItem = ({ item, badge }: { item: typeof navItems[0]; badge?: number }) => {
     const active = isActive(item.path);
     return (
       <Link to={item.path} data-cursor-hover>
         <motion.div
-          className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors group ${
+          className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors group pl-10 ${
             active
-              ? "bg-accent text-accent-foreground"
+              ? "bg-red-500/10 text-red-100 border border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.12)]"
               : "text-muted-foreground hover:text-foreground hover:bg-secondary"
           }`}
           whileHover={{ x: collapsed ? 0 : 4 }}
@@ -49,12 +87,12 @@ const AppSidebar = () => {
         >
           {active && (
             <motion.div
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r-full"
-              layoutId="activeNav"
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-red-500 shadow-[0_0_18px_rgba(239,68,68,0.8)]"
+              layoutId="activeDot"
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
             />
           )}
-          <item.icon size={20} strokeWidth={1.5} className={active ? "text-primary" : ""} />
+          <item.icon size={20} strokeWidth={1.5} className={active ? "text-red-400" : ""} />
           <AnimatePresence>
             {!collapsed && (
               <motion.span
@@ -84,12 +122,12 @@ const AppSidebar = () => {
 
   return (
     <motion.aside
-      className="fixed left-0 top-0 h-screen bg-card border-r border-border z-40 flex flex-col"
+      className="relative fixed left-0 top-0 h-screen bg-card border-r border-border z-40 flex flex-col overflow-hidden"
       animate={{ width: collapsed ? 72 : 240 }}
       transition={{ type: "spring", stiffness: 400, damping: 35 }}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
+      <div className="flex items-center justify-between p-4 border-b border-border z-10">
         <Link to="/" data-cursor-hover>
           <HeartLogo size={28} collapsed={collapsed} />
         </Link>
@@ -105,7 +143,7 @@ const AppSidebar = () => {
       </div>
 
       {/* Nav Items */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      <nav className="relative flex-1 p-3 pl-10 space-y-1 overflow-y-auto">
         {navItems.map(item => (
           <NavItem key={item.path} item={item} />
         ))}
@@ -127,8 +165,27 @@ const AppSidebar = () => {
       {/* User */}
       <div className="p-3 border-t border-border">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
-            {user?.avatarInitial ?? "?"}
+          <div className="relative group">
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold overflow-hidden">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user?.name} className="w-full h-full object-cover" />
+              ) : (
+                user?.avatarInitial ?? "?"
+              )}
+            </div>
+            <div className="absolute inset-0 rounded-full bg-background/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+              <label htmlFor="sidebar-profile-image" className="cursor-pointer p-1">
+                <Camera size={12} className="text-foreground" />
+              </label>
+              <input
+                id="sidebar-profile-image"
+                type="file"
+                accept="image/*"
+                onChange={handleProfileImageUpload}
+                disabled={isUploadingImage}
+                className="hidden"
+              />
+            </div>
           </div>
           <AnimatePresence>
             {!collapsed && (
